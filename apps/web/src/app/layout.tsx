@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { ClerkProvider } from '@clerk/nextjs';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
   description: 'The investment research platform that remembers why you bought.',
 };
 
+function Providers({ children }: { children: React.ReactNode }) {
+  // Only wrap with ClerkProvider if keys are configured
+  if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
+    return <ClerkProvider>{children}</ClerkProvider>;
+  }
+  return <>{children}</>;
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -27,7 +36,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen bg-background`}
       >
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
