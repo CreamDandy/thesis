@@ -20,10 +20,8 @@ export function SignalScoreGauge({
   bearishCount,
   className,
 }: SignalScoreGaugeProps) {
-  // Clamp score between 0 and 100
   const clampedScore = Math.max(0, Math.min(100, score));
 
-  // 3-Zone color system based on score
   const getScoreColor = () => {
     if (clampedScore <= 33) return 'text-red-500';
     if (clampedScore <= 66) return 'text-amber-500';
@@ -31,145 +29,110 @@ export function SignalScoreGauge({
   };
 
   // Gauge dimensions
-  const width = 220;
-  const height = 130;
-  const cx = width / 2; // Center X
-  const cy = height - 20; // Center Y (pivot point)
-  const radius = 80;
-  const strokeWidth = 24;
+  const width = 200;
+  const height = 120;
+  const cx = width / 2;
+  const cy = height - 15;
+  const radius = 70;
+  const strokeWidth = 20;
 
-  // Helper: convert polar to cartesian
-  // Angle 0 = pointing right (3 o'clock), 90 = up (12 o'clock), 180 = left (9 o'clock)
-  const getPoint = (angle: number, r: number = radius) => {
-    const rad = (angle * Math.PI) / 180;
-    return {
-      x: cx + r * Math.cos(rad),
-      y: cy - r * Math.sin(rad), // Minus because SVG Y is inverted
-    };
-  };
+  // Create a proper semicircle arc path
+  // Start at left (9 o'clock), end at right (3 o'clock)
+  const arcPath = `M ${cx - radius} ${cy} A ${radius} ${radius} 0 0 1 ${cx + radius} ${cy}`;
 
-  // Create arc path using SVG arc command
-  // Arc goes from startAngle to endAngle (counterclockwise in standard math)
-  const createArc = (startAngle: number, endAngle: number) => {
-    const start = getPoint(startAngle);
-    const end = getPoint(endAngle);
-    const largeArc = Math.abs(endAngle - startAngle) > 180 ? 1 : 0;
-    // sweep = 0 for counterclockwise (going from higher angle to lower)
-    return `M ${start.x} ${start.y} A ${radius} ${radius} 0 ${largeArc} 0 ${end.x} ${end.y}`;
-  };
-
-  // Needle: score 0 = left (180°), score 50 = up (90°), score 100 = right (0°)
-  const needleAngle = 180 - (clampedScore / 100) * 180;
-  const needleLength = radius - 12;
-  const needleTip = getPoint(needleAngle, needleLength);
+  // Needle angle: score 0 = left (180°), score 100 = right (0°)
+  // In SVG rotation: 0° points right, so we need to map score to rotation
+  const needleRotation = -90 + (clampedScore / 100) * 180; // -90° (left) to 90° (right)
+  const needleLength = radius - 8;
 
   return (
     <div className={cn('flex flex-col items-center', className)}>
-      {/* SVG Gauge */}
       <svg
         width={width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
         style={{ overflow: 'visible' }}
       >
-        {/* Arc segments - from left (180°) to right (0°) */}
-        {/* Red zone: 180° to 120° (left third) */}
+        {/* Background track */}
         <path
-          d={createArc(180, 120)}
+          d={arcPath}
+          fill="none"
+          stroke="#e5e7eb"
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          className="dark:stroke-gray-700"
+        />
+
+        {/* Colored segments using stroke-dasharray */}
+        {/* Red segment (0-33%) */}
+        <path
+          d={arcPath}
           fill="none"
           stroke="#ef4444"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
+          strokeDasharray={`${(radius * Math.PI) * 0.33} ${radius * Math.PI}`}
+          strokeDashoffset="0"
         />
-        {/* Yellow zone: 120° to 60° (middle third) */}
+        {/* Yellow segment (33-66%) */}
         <path
-          d={createArc(120, 60)}
+          d={arcPath}
           fill="none"
           stroke="#f59e0b"
           strokeWidth={strokeWidth}
-          strokeLinecap="butt"
+          strokeDasharray={`${(radius * Math.PI) * 0.33} ${radius * Math.PI}`}
+          strokeDashoffset={`${-(radius * Math.PI) * 0.33}`}
         />
-        {/* Green zone: 60° to 0° (right third) */}
+        {/* Green segment (66-100%) */}
         <path
-          d={createArc(60, 0)}
+          d={arcPath}
           fill="none"
           stroke="#10b981"
           strokeWidth={strokeWidth}
           strokeLinecap="round"
+          strokeDasharray={`${(radius * Math.PI) * 0.34} ${radius * Math.PI}`}
+          strokeDashoffset={`${-(radius * Math.PI) * 0.66}`}
         />
 
         {/* Needle */}
-        <line
-          x1={cx}
-          y1={cy}
-          x2={needleTip.x}
-          y2={needleTip.y}
-          stroke="#1f2937"
-          strokeWidth={4}
-          strokeLinecap="round"
-          className="dark:stroke-gray-100"
-        />
-
-        {/* Needle tip triangle */}
-        <circle
-          cx={needleTip.x}
-          cy={needleTip.y}
-          r={6}
-          fill="#1f2937"
-          className="dark:fill-gray-100"
-        />
+        <g transform={`rotate(${needleRotation}, ${cx}, ${cy})`}>
+          <line
+            x1={cx}
+            y1={cy}
+            x2={cx + needleLength}
+            y2={cy}
+            stroke="#1f2937"
+            strokeWidth={3}
+            strokeLinecap="round"
+            className="dark:stroke-gray-100"
+          />
+          <circle
+            cx={cx + needleLength}
+            cy={cy}
+            r={5}
+            fill="#1f2937"
+            className="dark:fill-gray-100"
+          />
+        </g>
 
         {/* Center pivot */}
-        <circle
-          cx={cx}
-          cy={cy}
-          r={14}
-          fill="#1f2937"
-          className="dark:fill-gray-100"
-        />
-        <circle
-          cx={cx}
-          cy={cy}
-          r={8}
-          fill="white"
-          className="dark:fill-gray-900"
-        />
+        <circle cx={cx} cy={cy} r={12} fill="#1f2937" className="dark:fill-gray-100" />
+        <circle cx={cx} cy={cy} r={6} fill="white" className="dark:fill-gray-900" />
 
         {/* Labels */}
-        <text
-          x={cx - radius - 8}
-          y={cy + 5}
-          textAnchor="end"
-          fill="#ef4444"
-          fontSize="12"
-          fontWeight="600"
-        >
+        <text x={cx - radius - 12} y={cy + 5} textAnchor="end" fill="#ef4444" fontSize="11" fontWeight="600">
           Sell
         </text>
-        <text
-          x={cx}
-          y={cy - radius - strokeWidth / 2 - 8}
-          textAnchor="middle"
-          fill="#f59e0b"
-          fontSize="12"
-          fontWeight="600"
-        >
+        <text x={cx} y={cy - radius - 8} textAnchor="middle" fill="#f59e0b" fontSize="11" fontWeight="600">
           Hold
         </text>
-        <text
-          x={cx + radius + 8}
-          y={cy + 5}
-          textAnchor="start"
-          fill="#10b981"
-          fontSize="12"
-          fontWeight="600"
-        >
+        <text x={cx + radius + 12} y={cy + 5} textAnchor="start" fill="#10b981" fontSize="11" fontWeight="600">
           Buy
         </text>
       </svg>
 
       {/* Score display */}
-      <div className="text-center -mt-4">
+      <div className="text-center -mt-3">
         <div className={cn('text-4xl font-bold tabular-nums', getScoreColor())}>
           {clampedScore}
         </div>

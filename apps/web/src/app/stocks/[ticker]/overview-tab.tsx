@@ -185,22 +185,30 @@ function MetricsToWatch({ keyMetricsToWatch }: MetricsToWatchProps) {
   return (
     <Card>
       <CardHeader className="pb-2 pt-4 px-4">
-        <CardTitle className="text-base font-medium">Metrics to Watch</CardTitle>
+        <CardTitle className="text-base font-medium">Key Metrics to Watch</CardTitle>
       </CardHeader>
-      <CardContent className="px-4 pb-4 space-y-3">
+      <CardContent className="px-4 pb-4 space-y-4">
         {metrics.slice(0, 3).map((metric, i) => (
-          <div key={i} className="space-y-1">
+          <div key={i} className="space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">{metric.metric}</span>
-              <span className="text-sm text-muted-foreground font-mono">{metric.current}</span>
+              <Badge variant="outline" className="font-mono text-xs">
+                {metric.current}
+              </Badge>
             </div>
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-green-600 dark:text-green-400">
-                {metric.bullishIf}
-              </span>
-              <span className="text-red-600 dark:text-red-400">
-                {metric.bearishIf}
-              </span>
+            <div className="flex items-center justify-between text-xs gap-4">
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Bullish:</span>
+                <span className="text-green-600 dark:text-green-400 font-medium">
+                  {metric.bullishIf}
+                </span>
+              </div>
+              <div className="flex items-center gap-1">
+                <span className="text-muted-foreground">Bearish:</span>
+                <span className="text-red-600 dark:text-red-400 font-medium">
+                  {metric.bearishIf}
+                </span>
+              </div>
             </div>
           </div>
         ))}
