@@ -1,137 +1,364 @@
 'use client';
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useSignals, type Signal } from '@/lib/hooks/use-stocks';
+import { useReport, useBrief, type ResearchBriefData, type ActionSummary } from '@/lib/hooks/use-reports';
+import type { Stock } from '@thesis/db';
+
+// Import compact components
+import { SignalScoreGauge } from '@/components/ui/signal-score-gauge';
+import { ValuationGauge } from '@/components/ui/valuation-gauge';
 import {
-  formatCompactNumber,
-  formatCurrency,
-  formatPercent,
-  formatVolume,
-  type StockData,
-} from '@/lib/mock-stock-data';
+  CompactActionSummary,
+  ScenarioAnalysisCompact,
+  TargetPriceCard,
+  BusinessOverviewCompact,
+  AnalystConsensusCompact,
+} from './dashboard-cards';
+import { CompactSignalGrid } from './signal-grid';
+import { SecondaryInfoRow } from './secondary-info-row';
+
+// =============================================================================
+// Types
+// =============================================================================
 
 interface OverviewTabProps {
-  stock: StockData;
+  stock: Stock;
 }
 
-interface StatItemProps {
-  label: string;
-  value: string;
+type ValuationVerdict = 'undervalued' | 'fairly_valued' | 'overvalued';
+
+// =============================================================================
+// Helper Functions
+// =============================================================================
+
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return 'TBD';
+  return new Date(dateStr).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
 }
 
-function StatItem({ label, value }: StatItemProps) {
+// =============================================================================
+// Loading Skeletons (Compact versions for bento grid)
+// =============================================================================
+
+function HeroRowSkeleton() {
   return (
-    <div className="flex justify-between py-2 border-b last:border-b-0">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium">{value}</span>
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Action Summary - spans 2 cols on desktop */}
+      <Card className="lg:col-span-2">
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <Skeleton className="h-8 w-24" />
+            <Skeleton className="h-4 w-20" />
+          </div>
+          <Skeleton className="h-4 w-full" />
+          <Skeleton className="h-4 w-3/4" />
+          <div className="flex gap-2 pt-2">
+            <Skeleton className="h-5 w-16" />
+            <Skeleton className="h-5 w-16" />
+          </div>
+        </CardContent>
+      </Card>
+      {/* Signal Score Gauge */}
+      <Card>
+        <CardContent className="p-4 flex flex-col items-center justify-center py-6">
+          <Skeleton className="h-20 w-40 rounded-t-full" />
+          <Skeleton className="h-8 w-16 mt-2" />
+          <Skeleton className="h-4 w-24 mt-1" />
+        </CardContent>
+      </Card>
+      {/* Valuation Gauge */}
+      <Card>
+        <CardContent className="p-4 flex flex-col items-center justify-center py-6">
+          <Skeleton className="h-8 w-24" />
+          <Skeleton className="h-4 w-20 mt-2" />
+          <Skeleton className="h-3 w-full mt-4" />
+          <Skeleton className="h-4 w-20 mt-2" />
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-export function OverviewTab({ stock }: OverviewTabProps) {
+function AnalysisRowSkeleton() {
   return (
-    <div className="space-y-6">
-      {/* Key Statistics */}
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Card>
-        <CardHeader>
-          <CardTitle>Key Statistics</CardTitle>
-          <CardDescription>
-            Financial metrics and valuation data for {stock.ticker}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {/* Valuation Metrics */}
-            <div className="space-y-1">
-              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                Valuation
-              </h4>
-              <StatItem label="Market Cap" value={formatCompactNumber(stock.marketCap)} />
-              <StatItem label="P/E Ratio" value={stock.pe.toFixed(2)} />
-              <StatItem label="Forward P/E" value={stock.forwardPE.toFixed(2)} />
-              <StatItem label="EPS" value={formatCurrency(stock.eps)} />
-            </div>
-
-            {/* Dividends & Returns */}
-            <div className="space-y-1">
-              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                Dividends & Returns
-              </h4>
-              <StatItem
-                label="Dividend Yield"
-                value={stock.dividendYield > 0 ? `${stock.dividendYield.toFixed(2)}%` : 'N/A'}
-              />
-              <StatItem
-                label="Payout Ratio"
-                value={stock.payoutRatio > 0 ? `${stock.payoutRatio.toFixed(1)}%` : 'N/A'}
-              />
-              <StatItem label="ROE" value={`${stock.roe.toFixed(1)}%`} />
-              <StatItem label="Net Margin" value={`${stock.netMargin.toFixed(1)}%`} />
-            </div>
-
-            {/* Trading Data */}
-            <div className="space-y-1">
-              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                Trading Data
-              </h4>
-              <StatItem label="52-Week High" value={formatCurrency(stock.weekHigh52)} />
-              <StatItem label="52-Week Low" value={formatCurrency(stock.weekLow52)} />
-              <StatItem label="Volume" value={formatVolume(stock.volume)} />
-              <StatItem label="Avg Volume" value={formatVolume(stock.avgVolume)} />
-            </div>
-
-            {/* Financial Health */}
-            <div className="space-y-1 md:col-span-2 lg:col-span-3">
-              <h4 className="font-semibold text-sm text-muted-foreground uppercase tracking-wide mb-3">
-                Financial Health
-              </h4>
-              <div className="grid gap-6 md:grid-cols-3">
-                <StatItem label="Debt/Equity" value={`${stock.debtToEquity.toFixed(1)}%`} />
-                <StatItem label="Revenue (TTM)" value={formatCompactNumber(stock.revenue)} />
-                <StatItem label="Free Cash Flow" value={formatCompactNumber(stock.freeCashFlow)} />
-              </div>
-            </div>
+        <CardContent className="p-4 space-y-3">
+          <Skeleton className="h-5 w-24" />
+          <div className="space-y-2">
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+            <Skeleton className="h-5 w-full" />
+          </div>
+          <Skeleton className="h-6 w-32 mt-2" />
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-4 space-y-3">
+          <Skeleton className="h-5 w-24" />
+          <div className="space-y-2">
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-full" />
+          </div>
+          <div className="grid grid-cols-3 gap-2 mt-2">
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
           </div>
         </CardContent>
       </Card>
+    </div>
+  );
+}
 
-      {/* Company Description */}
-      <Card>
-        <CardHeader>
-          <CardTitle>About {stock.name}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground leading-relaxed">{stock.description}</p>
+function ContextRowSkeleton() {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {[1, 2, 3].map((i) => (
+        <Card key={i}>
+          <CardContent className="p-4 space-y-3">
+            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-4 w-full" />
+            <Skeleton className="h-4 w-3/4" />
+            <div className="flex gap-3 mt-2">
+              <Skeleton className="h-8 w-14" />
+              <Skeleton className="h-8 w-14" />
+              <Skeleton className="h-8 w-14" />
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function SignalsRowSkeleton() {
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <Skeleton className="h-5 w-36" />
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="flex items-center gap-2 p-2">
+              <Skeleton className="h-4 w-4" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-4 ml-auto" />
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// =============================================================================
+// MetricsToWatch Component (inline for Row 3)
+// =============================================================================
+
+interface MetricsToWatchProps {
+  keyMetricsToWatch?: ActionSummary['thesisMonitors'];
+}
+
+function MetricsToWatch({ keyMetricsToWatch }: MetricsToWatchProps) {
+  const metrics = keyMetricsToWatch?.keyMetricsToWatch;
+
+  if (!metrics || metrics.length === 0) {
+    return (
+      <Card className="min-h-[160px] border-2 border-dashed border-muted">
+        <CardContent className="flex items-center justify-center min-h-[140px]">
+          <p className="text-sm text-muted-foreground">No key metrics to watch</p>
         </CardContent>
       </Card>
+    );
+  }
 
-      {/* Analyst Ratings (Placeholder) */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Analyst Ratings</CardTitle>
-          <CardDescription>Consensus recommendations from Wall Street analysts</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <Badge className="bg-green-600 hover:bg-green-600">Buy</Badge>
-              <span className="text-sm text-muted-foreground">12 analysts</span>
+  return (
+    <Card>
+      <CardHeader className="pb-2 pt-4 px-4">
+        <CardTitle className="text-base font-medium">Metrics to Watch</CardTitle>
+      </CardHeader>
+      <CardContent className="px-4 pb-4 space-y-3">
+        {metrics.slice(0, 3).map((metric, i) => (
+          <div key={i} className="space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">{metric.metric}</span>
+              <span className="text-sm text-muted-foreground font-mono">{metric.current}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">Hold</Badge>
-              <span className="text-sm text-muted-foreground">8 analysts</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="destructive">Sell</Badge>
-              <span className="text-sm text-muted-foreground">2 analysts</span>
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-green-600 dark:text-green-400">
+                {metric.bullishIf}
+              </span>
+              <span className="text-red-600 dark:text-red-400">
+                {metric.bearishIf}
+              </span>
             </div>
           </div>
-          <p className="text-sm text-muted-foreground mt-4">
-            Average Price Target: <span className="font-medium text-foreground">{formatCurrency(stock.price * 1.15)}</span>
-            {' '}(+15.0% upside)
-          </p>
-        </CardContent>
-      </Card>
+        ))}
+      </CardContent>
+    </Card>
+  );
+}
+
+// =============================================================================
+// Main Component
+// =============================================================================
+
+export function OverviewTab({ stock }: OverviewTabProps) {
+  const { data: signals, isLoading: signalsLoading } = useSignals(stock.ticker);
+  const { data: report, isLoading: reportLoading } = useReport(stock.ticker);
+  const { data: brief, isLoading: briefLoading } = useBrief(stock.ticker);
+
+  const isLoading = signalsLoading || reportLoading || briefLoading;
+
+  // Get current price from various sources
+  const currentPrice = brief?.analystConsensus?.currentPrice ?? report?.valuationDetails?.currentPrice ?? null;
+
+  // Get valuation verdict
+  const valuationVerdict = (report?.valuationVerdict ?? brief?.investmentThesis?.verdict ?? null) as ValuationVerdict | null;
+
+  return (
+    <div className="space-y-4">
+      {/* =================================================================== */}
+      {/* ROW 1: Hero Row - Most critical info */}
+      {/* =================================================================== */}
+      {isLoading ? (
+        <HeroRowSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Action Summary - spans 2 cols on desktop */}
+          <div className="lg:col-span-2">
+            <CompactActionSummary
+              actionSummary={brief?.actionSummary ?? null}
+              currentPrice={currentPrice}
+            />
+          </div>
+
+          {/* Signal Score Gauge */}
+          <Card>
+            <CardContent className="flex items-center justify-center p-3">
+              {signals?.compositeScore ? (
+                <SignalScoreGauge
+                  score={signals.compositeScore.score}
+                  label={signals.compositeScore.label}
+                  bullishCount={signals.bullishCount}
+                  neutralCount={signals.neutralCount}
+                  bearishCount={signals.bearishCount}
+                />
+              ) : (
+                <div className="text-center text-muted-foreground text-sm py-8">
+                  No signal data
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Valuation Gauge */}
+          <Card>
+            <CardContent className="p-4">
+              <ValuationGauge
+                verdict={valuationVerdict}
+                currentPrice={currentPrice}
+                fairValue={report?.valuationDetails?.fairValueEstimate ?? null}
+              />
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* ROW 2: Analysis Row - Scenarios and targets */}
+      {/* =================================================================== */}
+      {isLoading ? (
+        <AnalysisRowSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <ScenarioAnalysisCompact
+            scenarioAnalysis={brief?.scenarioAnalysis ?? null}
+            currentPrice={currentPrice}
+          />
+          <TargetPriceCard
+            targetPriceAnalysis={brief?.actionSummary?.targetPriceAnalysis}
+            valuationZones={brief?.actionSummary?.valuationZones}
+            riskManagement={brief?.actionSummary?.riskManagement}
+          />
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* ROW 3: Context Row - Business, metrics, consensus */}
+      {/* =================================================================== */}
+      {isLoading ? (
+        <ContextRowSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <BusinessOverviewCompact
+            businessOverview={brief?.businessOverview ?? null}
+            stock={stock}
+          />
+          <MetricsToWatch
+            keyMetricsToWatch={brief?.actionSummary?.thesisMonitors}
+          />
+          <AnalystConsensusCompact
+            consensus={brief?.analystConsensus ?? null}
+          />
+        </div>
+      )}
+
+      {/* =================================================================== */}
+      {/* ROW 4: Signals Row - Detailed signal grid */}
+      {/* =================================================================== */}
+      {isLoading ? (
+        <SignalsRowSkeleton />
+      ) : signals?.signals ? (
+        <Card>
+          <CardHeader className="pb-2">
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <span>Signal Intelligence</span>
+              </CardTitle>
+              <Badge variant="outline" className="text-[10px]">
+                Real-time
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <CompactSignalGrid signals={signals.signals} />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {/* =================================================================== */}
+      {/* ROW 5: Secondary Info (collapsible) */}
+      {/* =================================================================== */}
+      {brief && (
+        <SecondaryInfoRow
+          considerations={brief.keyConsiderations ?? []}
+          risks={brief.riskFactors ?? []}
+          events={brief.upcomingEvents ?? []}
+        />
+      )}
+
+      {/* =================================================================== */}
+      {/* Footer: Brief metadata */}
+      {/* =================================================================== */}
+      {brief?.generatedAt && (
+        <p className="text-xs text-muted-foreground text-right">
+          Research brief generated {formatDate(brief.generatedAt)}
+          {brief.isExpired && (
+            <span className="text-amber-600 ml-2">(Expired - refresh recommended)</span>
+          )}
+        </p>
+      )}
     </div>
   );
 }
